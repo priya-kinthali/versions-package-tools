@@ -20,7 +20,7 @@ param (
     [Parameter(Mandatory)] [string] $ConfigurationFile
 )
 
-Import-Module (Join-Path $PSScriptRoot "../helpers/github/github-api.psm1")
+Import-Module (Join-Path $PSScriptRoot "../github/github-api.psm1")
 Import-Module (Join-Path $PSScriptRoot "manifest-utils.psm1") -Force
 
 $configuration = Read-ConfigurationFile -Filepath $ConfigurationFile
@@ -28,7 +28,7 @@ $configuration = Read-ConfigurationFile -Filepath $ConfigurationFile
 $gitHubApi = Get-GitHubApi -RepositoryFullName $RepositoryFullName -AccessToken $GitHubAccessToken
 $noGILreleases = $gitHubApi.GetReleases()
 
-$upstreamApi = Get-GitHubApi -RepositoryFullName "actions/python-versions" -AccessToken $GitHubAccessToken
+$upstreamApi = Get-GitHubApi -RepositoryFullName "priya-kinthali/python-versions" -AccessToken $GitHubAccessToken
 $releases = $upstreamApi.GetReleases()
 
 $versionIndex = Build-VersionsManifest -Releases $releases -NoGILReleases $noGILreleases -Configuration $configuration
