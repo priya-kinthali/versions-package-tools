@@ -46,10 +46,12 @@ function Get-VersionFromRelease {
 function Build-VersionsManifest {
     param (
         [Parameter(Mandatory)][array]$Releases,
+        [Parameter(Mandatory)][array]$NoGILReleases,
         [Parameter(Mandatory)][object]$Configuration
     )
 
     $Releases = $Releases | Sort-Object -Property "published_at" -Descending
+    $NoGILReleases = $NoGILReleases | Sort-Object -Property "published_at" -Descending
     $ltsRules = Get-LtsRules -Configuration $Configuration
 
     $versionsHash = @{}
@@ -78,6 +80,42 @@ function Build-VersionsManifest {
         $versionHash | Add-Member -Name "release_url" -Value $release.html_url -MemberType NoteProperty
         $versionHash | Add-Member -Name "files" -Value $releaseAssets -MemberType NoteProperty
         $versionsHash.Add($versionKey, $versionHash)
+    }
+
+    $noGILversionsHash = @{}
+    foreach ($release in $NoGILReleases) {
+        if (($release.draft -eq $true) -or ($release.prerelease -eq $true)) {
+            continue
+        }
+
+        [Semver]$version = Get-VersionFromRelease $release
+        $versionKey = $version.ToString()
+
+        if ($noGILversionsHash.ContainsKey($versionKey)) {
+            continue
+        }
+
+        $ltsStatus = Get-VersionLtsStatus -Version $versionKey -LtsRules $ltsRules
+        $stable = $version.PreReleaseLabel ? $false : $true
+        [array]$releaseAssets = $release.assets | Where { $_.Name -ne "hashes.sha256" } | ForEach-Object { New-AssetItem -ReleaseAsset $_ -Configuration $Configuration }
+
+        $versionHash = [PSCustomObject]@{}
+        $versionHash | Add-Member -Name "version" -Value $versionKey -MemberType NoteProperty
+        $versionHash | Add-Member -Name "stable" -Value $stable -MemberType NoteProperty
+        if ($ltsStatus) {
+            $versionHash | Add-Member -Name "lts" -Value $ltsStatus -MemberType NoteProperty
+        }
+        $versionHash | Add-Member -Name "release_url" -Value $release.html_url -MemberType NoteProperty
+        $versionHash | Add-Member -Name "files" -Value $releaseAssets -MemberType NoteProperty
+
+        if ($versionsHash.ContainsKey($versionKey)) {
+            # filter out filenames already in the versionsHash
+            $releaseAssets = $releaseAssets | Where-Object { $versionsHash[$versionKey].files.filename -notcontains $_.filename }
+            $versionsHash[$versionKey].files += $releaseAssets
+        } else {
+            $versionsHash.Add($versionKey, $versionHash)
+        }
+        $noGILversionsHash.Add($versionKey, $versionHash)
     }
 
     # Sort versions by descending
